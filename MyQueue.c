@@ -21,7 +21,7 @@
   * @return	队列指针	
   * @remark		
   */
-bool MyQueue_Create(MyQueue_Typedef *queue,void *buf,uint16_t queue_len,uint8_t queue_size_byte)
+bool MyQueue_Create(MyQueue_Typedef *queue,void *buf,uint16_t queue_len,uint16_t queue_size_byte)
 {
 	if(queue_len==0 || queue_size_byte==0 || buf==NULL || queue==NULL)
 		return false;
