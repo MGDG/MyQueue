@@ -21,12 +21,12 @@ typedef struct{
 	uint16_t len;			// 队列长度
 	uint16_t front;			// 队列头,指向下一个空闲存放地址
 	uint16_t rear;			// 队列尾，指向第一个数据
-	uint8_t size;			// 单个数据大小(单位 字节)
+	uint16_t size;			// 单个数据大小(单位 字节)
 	
 }MyQueue_Typedef;
 
 
-bool MyQueue_Create(MyQueue_Typedef *queue,void *buf,uint16_t queue_len,uint8_t queue_size_byte);
+bool MyQueue_Create(MyQueue_Typedef *queue,void *buf,uint16_t queue_len,uint16_t queue_size_byte);
 
 uint16_t MyQueue_GetCount(MyQueue_Typedef *queue);
 uint16_t MyQueue_GetLeftCount(MyQueue_Typedef *queue);
