@@ -19,8 +19,8 @@
 typedef struct{
 	void *buffer;			// 数据缓冲区
 	uint16_t len;			// 队列长度
-	uint16_t front;			// 数据头,指向下一个空闲存放地址
-	uint16_t rear;			// 数据尾，指向第一个数据
+	uint16_t front;			// 队列头,指向下一个空闲存放地址
+	uint16_t rear;			// 队列尾，指向第一个数据
 	uint8_t size;			// 单个数据大小(单位 字节)
 	
 }MyQueue_Typedef;
