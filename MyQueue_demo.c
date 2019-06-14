@@ -15,7 +15,7 @@
 typedef unsigned          char uint8_t;
 typedef unsigned           int uint32_t;
 
-MyQueue_Typedef DemoQueue;
+myQueueHandle_t DemoQueue;
 
 uint8_t DemoQueueBuf[1024];
 
@@ -29,40 +29,42 @@ void test3(void)
 
 	memset(DemoQueueBuf,0x00,sizeof(DemoQueueBuf));
 	memset(bufy,0x00,sizeof(bufy));
+	
+	DemoQueue = myQueueCreate(1024,1);
 
-	if(MyQueue_Create(&DemoQueue,DemoQueueBuf,sizeof(DemoQueueBuf)/sizeof(DemoQueueBuf[0]),sizeof(DemoQueueBuf[0])))
+	if(NULL != DemoQueue)
 	{
 
-		printf("queue data count : %d\r\n",MyQueue_Num(&DemoQueue));
-		printf("queue data left count : %d\r\n",MyQueue_LeftNum(&DemoQueue));
-		printf("queue is full  : %d\r\n",MyQueue_IsFull(&DemoQueue));
-		printf("queue is empty  : %d\r\n",MyQueue_IsEmpty(&DemoQueue));
-		printf("queue size : %d\r\n",MyQueue_Size(&DemoQueue));
+		printf("queue data count : %d\r\n",myQueueNum(DemoQueue));
+		printf("queue data left count : %d\r\n",myQueueLeftNum(DemoQueue));
+		printf("queue is full  : %d\r\n",myQueueIsFull(DemoQueue));
+		printf("queue is empty  : %d\r\n",myQueueIsEmpty(DemoQueue));
+		printf("queue size : %d\r\n",myQueueCapacity(DemoQueue));
 		printf("creat success\r\n\r\n");
 
 
-		MyQueue_Put(&DemoQueue,bufx,10);
-		printf("queue data count : %d\r\n",MyQueue_Num(&DemoQueue));
-		printf("queue data left count : %d\r\n",MyQueue_LeftNum(&DemoQueue));
-		printf("queue is full  : %d\r\n",MyQueue_IsFull(&DemoQueue));
-		printf("queue is empty  : %d\r\n",MyQueue_IsEmpty(&DemoQueue));
-		printf("queue size : %d\r\n",MyQueue_Size(&DemoQueue));
+		myQueuePut(DemoQueue,bufx,10);
+		printf("queue data count : %d\r\n",myQueueNum(DemoQueue));
+		printf("queue data left count : %d\r\n",myQueueLeftNum(DemoQueue));
+		printf("queue is full  : %d\r\n",myQueueIsFull(DemoQueue));
+		printf("queue is empty  : %d\r\n",myQueueIsEmpty(DemoQueue));
+		printf("queue size : %d\r\n",myQueueCapacity(DemoQueue));
 
 		printf("\r\n");
 
 		for(i=0;i<10;i++)
 			printf("%02X ",bufy[i]);
 		printf("\r\n");
-//		MyQueue_Get(&DemoQueue,bufy,10);
-		MyQueue_Peek(&DemoQueue,bufy,5,5);
+
+		myQueuePeek(DemoQueue,bufy,5,5);
 		for(i=0;i<10;i++)
 			printf("%02X ",bufy[i]);
 		printf("\r\n");
-		printf("queue data count : %d\r\n",MyQueue_Num(&DemoQueue));
-		printf("queue data left count : %d\r\n",MyQueue_LeftNum(&DemoQueue));
-		printf("queue is full  : %d\r\n",MyQueue_IsFull(&DemoQueue));
-		printf("queue is empty  : %d\r\n",MyQueue_IsEmpty(&DemoQueue));
-		printf("queue size : %d\r\n",MyQueue_Size(&DemoQueue));
+		printf("queue data count : %d\r\n",myQueueNum(DemoQueue));
+		printf("queue data left count : %d\r\n",myQueueLeftNum(DemoQueue));
+		printf("queue is full  : %d\r\n",myQueueIsFull(DemoQueue));
+		printf("queue is empty  : %d\r\n",myQueueIsEmpty(DemoQueue));
+		printf("queue size : %d\r\n",myQueueCapacity(DemoQueue));
 		
 	}
 	else

@@ -1,296 +1,258 @@
 /**
   * @file		MyQueue.c
   * @author 	mgdg
-  * @brief		队列驱动文件
+  * @brief		���������ļ�
   * @version	v1.0
   * @date		2017-09-28
-  * @remark		创建可以存放任意元素的环形队列，包含了入队出队等基本操作
-  
-  *				
+  * @remark		�������Դ������Ԫ�صĻ��ζ��У���������ӳ��ӵȻ�������			
   */
+
+/*ֻ��һ�������ߺ������ߵ�����²���Ҫ������*/
+//#define MYQUEUE_USE_LOCK
 
 #include "MyQueue.h"
+#include <stdio.h>
+#include <string.h>
+#include <assert.h>
 
-/**
-  * @brief	创建队列
-  * @param	*queue：队列对象
-  * @param	*buf：队列缓存数组指针
-  * @param	queue_len：队列长度
-  * @param	ItemSize：队列单个元素的大小，以字节为单位
+#ifdef MYQUEUE_USE_LOCK
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 
-  * @return	bool	
-  * @remark		
-  */
-bool MyQueue_Create(MyQueue_Typedef *queue,void *buf,unsigned short int queue_len,unsigned short int ItemSize)
+#define	MYQUEUE_API_CREATELOCK(v)		do{(v)->lock = xSemaphoreCreateMutex();assert((v)->lock);}while(0);
+#define MYQUEUE_API_DELETELOCK(v)		do{vSemaphoreDelete((v)->lock);}while(0);
+#define	MYQUEUE_API_LOCK(v)				do{xSemaphoreTake((v)->lock, portMAX_DELAY);}while(0);
+#define MYQUEUE_API_UNLOCK(v)			do{xSemaphoreGive((v)->lock);}while(0);
+#else
+#define	MYQUEUE_API_CREATELOCK(v)
+#define MYQUEUE_API_DELETELOCK(v)
+#define	MYQUEUE_API_LOCK(v)
+#define MYQUEUE_API_UNLOCK(v)
+#endif
+
+#define debug_i(format,...)				/*printf(format"\n",##__VA_ARGS__)*/
+#define NUM_IN_QUEUE(v)					((((v)->front) <= ((v)->rear))?(((v)->rear)-((v)->front)):(((v)->len)-((v)->front)+((v)->rear)))
+#define LFET_NUM_IN_QUEUE(v)			((((v)->front) <= ((v)->rear))?((((v)->len)-1)-(((v)->rear)-((v)->front))):(((v)->front)-((v)->rear)-1))
+
+typedef struct {
+	void                *buffer;        /*���ݻ�����*/
+	size_t              len;            /*���г���*/
+	size_t              size;           /*�������ݴ�С(��λ �ֽ�)*/
+	size_t              front;          /*����ͷ,ָ����һ�����д�ŵ�ַ*/
+	size_t              rear;           /*����β��ָ���һ������*/
+#ifdef MYQUEUE_USE_LOCK
+	SemaphoreHandle_t   lock;           /*������*/
+#endif
+}MYQUEUE_T;
+
+myQueueHandle_t myQueueCreate(size_t queue_len,size_t item_size)
 {
-	if(queue_len==0 || ItemSize==0 || buf==NULL || queue==NULL)
-		return false;
-
-	queue->buffer = buf;
-	queue->size = ItemSize;
+	if((0==queue_len) || (0==item_size)) {
+		debug_i("create queue,len=%d,ItemSize=%d",queue_len,item_size);
+		return NULL;
+	}
+	MYQUEUE_T *queue = calloc(1,sizeof(MYQUEUE_T));
+	assert(queue);
+	queue->size = item_size;
 	queue->len = queue_len;
+	queue->buffer = malloc((queue->size) * (queue->len));
+	assert(queue->buffer);
 	queue->front = queue->rear = 0;
-	return true;
+	MYQUEUE_API_CREATELOCK(queue);
+	MYQUEUE_API_UNLOCK(queue);
+	return (myQueueHandle_t)queue;
 }
 
-/**
-  * @brief	获取队列已存放数据个数
-  * @param	*queue：队列对象
-  *
-  * @return	unsigned short int:队列数据个数	
-  * @remark		
-  */
-unsigned short int  MyQueue_Num(const MyQueue_Typedef *queue)
+void myQueueDelete(myQueueHandle_t queue)
 {
-	if(queue == NULL)
-		return 0;
-
-	if(queue->front < queue->rear)
-		return (queue->front + queue->len - queue->rear);
-	else
-		return (queue->front - queue->rear);
-}
-
-/**
-  * @brief	获取队列剩余可存放数据个数
-  * @param	*queue：队列对象
-  *
-  * @return	unsigned short int:队列剩余可存放数据个数	
-  * @remark		
-  */
-unsigned short int MyQueue_LeftNum(const MyQueue_Typedef *queue)
-{
-	if(queue == NULL)
-		return 0;
-
-	if(queue->front < queue->rear)
-		return (queue->rear - queue->front) - 1;
-	else
-		return (queue->len - (queue->front - queue->rear)) - 1;
-}
-
-
-/**
-  * @brief	获取队列总容量
-  * @param	*queue：队列对象
-  *
-  * @return	unsigned short int:队列容量
-  * @remark		
-  */
-unsigned short int MyQueue_Size(const MyQueue_Typedef *queue)
-{	
-	if(queue == NULL)
-		return 0;
-
-	return queue->len - 1;
-}
-
-
-/**
-  * @brief	队列是否已满
-  * @param	*queue：队列对象
-  *
-  * @return	bool:队列满状态
-  * @remark		
-  */
-bool MyQueue_IsFull(const MyQueue_Typedef *queue)
-{
-	if(queue == NULL)
-		return false;
-
-	return MyQueue_Num(queue)  == ((queue->len)-1);
-}
-
-
-/**
-  * @brief	队列是否已空
-  * @param	*queue：队列对象
-  *
-  * @return	bool:队列空状态
-  * @remark		
-  */
-bool MyQueue_IsEmpty(const MyQueue_Typedef *queue)
-{
-	if(queue == NULL)
-		return false;
-
-	return MyQueue_Num(queue) == 0;
-}
-
-
-/**
-  * @brief	将指定个数的数据放入队列
-  * @param	*queue：队列对象
-  * @param	*buf：数据指针
-  * @param	num：数据个数
-  * 
-  * @return	bool
-  * @remark	
-  */
-bool MyQueue_Put(MyQueue_Typedef *queue,const void *buf,unsigned short int num)
-{
-	char *dst;
-	char *src = (char *)buf;
-	unsigned short int templen;
-
-	if(queue==NULL || buf==NULL)
-		return false;
-	
-	if( num > MyQueue_LeftNum(queue))
-		return false;
-	
-	while(num)
-	{
-		dst = ((char *)queue->buffer) + (queue->front)*(queue->size);
-		
-		templen = (queue->len)-(queue->front);
-		
-		if(num <= templen)
-			templen = num;
-
-		num -= templen;
-		
-		memcpy(dst,src,templen * (queue->size));
-
-		src += (templen * (queue->size));
-
-		queue->front += templen;
-		queue->front %= queue->len;
-	}	
-	
-	return true;
-}
-
-
-/**
-  * @brief	从队列中取出指定个数的数据
-  * @param	*queue：队列对象
-  * @param	*buffer：数据存放指针
-  * @param	num：取出的队列个数
-  * 
-  * @return	bool
-  * @remark		
-  */
-bool MyQueue_Get(MyQueue_Typedef *queue,void *buf,unsigned short int num)
-{
-	char *dst = (char *)buf;
-	char *src;
-	unsigned short int templen;
-
-	if(queue==NULL || buf==NULL)
-		return false;
-	
-	if(num > MyQueue_Num(queue))
-		return false;
-
-	while(num)
-	{
-		src = ((char *)queue->buffer) + (queue->rear)*(queue->size);
-		
-		templen = (queue->len)-(queue->rear);
-
-		if(num <= templen)
-			templen = num;
-		
-		num -= templen;
-
-		memcpy(dst,src,templen * (queue->size));
-		dst += (templen * (queue->size));
-		queue->rear += templen;
-		queue->rear %= queue->len;
+	if(NULL == queue) {
+		return;
 	}
-	
-	return true;
+	MYQUEUE_T *p = (MYQUEUE_T *)queue;
+	MYQUEUE_API_LOCK(p);
+	free(p->buffer);
+	MYQUEUE_API_UNLOCK(p);
+	MYQUEUE_API_DELETELOCK(p);
+	free(queue);
 }
 
-
-
-/**
-  * @brief	从指定偏移位置开始，从队列中获取指定个数的数据，但是不弹出数据
-  * @param	*queue：队列对象
-  * @param	*buf
-  * @param	num：数据长度
-  * @param	offset：偏移位置
-  * 
-  * @return	bool
-  * @remark		
-  */
-bool MyQueue_Peek(const MyQueue_Typedef *queue,void *buf,unsigned short int num,unsigned short int offset)
+size_t  myQueueNum(const myQueueHandle_t queue)
 {
-	char *dst = (char *)buf;
-	char *src;
-	unsigned short int templen;
-	unsigned short int temprear;
-	
-	if(queue==NULL || buf==NULL)
-		return false;
-
-	if((offset+num) > (MyQueue_Num(queue)))
-		return false;
-	
-	temprear = (queue->rear)+offset;
-	temprear %= queue->len; 
-	
-	while(num)
-	{
-		src = ((char *)queue->buffer) + (temprear)*(queue->size);
-		
-		templen = (queue->len)-(temprear);
-
-		if(num <= templen)
-			templen = num;
-
-		num -= templen;
-
-		memcpy(dst,src,templen * (queue->size));
-		dst += (templen * (queue->size));
-		temprear += templen;
-		temprear %= queue->len;
+	if(NULL == queue) {
+		return 0;
 	}
-
-	return true;
+	MYQUEUE_T *p = (MYQUEUE_T *)queue;
+	MYQUEUE_API_LOCK(p);
+	size_t num_in_queue = NUM_IN_QUEUE(p);
+	MYQUEUE_API_UNLOCK(p);
+	return num_in_queue;
 }
 
-
-
-/**
-  * @brief	弹掉指定个数的数据，不使用数据
-  * @param	*queue：队列对象
-  * @param	num：长度
-  * 
-  * @return	bool
-  * @remark		
-  */
-bool MyQueue_Pop(MyQueue_Typedef *queue,unsigned short int num)
+size_t myQueueLeftNum(const myQueueHandle_t queue)
 {
-	if(queue==NULL)
-		return false;
-
-	if(num <= MyQueue_Num(queue))
-	{	
-		queue->rear+=num;
-		queue->rear%=queue->len;   
-		return true;
+	if(NULL == queue) {
+		return 0;
 	}
-	else
-		return false;
+	MYQUEUE_T *p = (MYQUEUE_T *)queue;
+	MYQUEUE_API_LOCK(p);
+	size_t left_num_in_queue = LFET_NUM_IN_QUEUE(p);
+	MYQUEUE_API_UNLOCK(p);
+	return left_num_in_queue;
 }
 
-
-/**
-  * @brief	POP所有数据，不使用数据
-  * @param	*queue：队列对象
-  * 
-  * @return	bool
-  * @remark		
-  */
-bool MyQueue_PopAll(MyQueue_Typedef *queue)
+size_t myQueueCapacity(const myQueueHandle_t queue)
 {
-	if(queue==NULL)
+	MYQUEUE_T *p = (MYQUEUE_T *)queue;
+	return (NULL==p)?0:(p->len - 1);
+}
+
+bool myQueueIsFull(const myQueueHandle_t queue)
+{
+	if(NULL == queue) {
 		return false;
-	else
-	{
-		queue->rear = queue->front;
+	}
+	return (myQueueNum(queue)  == ((((MYQUEUE_T *)queue)->len)-1));
+}
+
+bool myQueueIsEmpty(const myQueueHandle_t queue)
+{
+	return (NULL==queue)?false:(0==myQueueNum(queue));
+}
+
+bool myQueuePut(myQueueHandle_t queue,const void *buf,size_t num)
+{
+	MYQUEUE_T *p = (MYQUEUE_T *)queue;
+	if((NULL==p) || (NULL==p->buffer) || (NULL==buf) || (0==num)) {
+		debug_i("put queue=%p,buf=%p,num=%d",queue,buf,num);
+		return false;
+	}
+	bool rt = true;
+	MYQUEUE_API_LOCK(p);
+	size_t left_num_in_queue = LFET_NUM_IN_QUEUE(p);
+	if( num <= left_num_in_queue) {
+		char *src = (char *)buf;
+		while(num) {
+			char *dst = ((char *)(p->buffer)) + (p->rear)*(p->size);
+			size_t templen = (p->len)-(p->rear);
+			if(num <= templen) {
+				templen = num;
+			}
+			num -= templen;
+			size_t copy_len = templen * (p->size);
+			memcpy(dst,src,copy_len);
+			src += copy_len;
+			p->rear = (p->rear + templen) % (p->len);
+		}
+	}
+	else {
+		rt = false;
+		debug_i("put failed, num=%d,left=%d,front=%d,rear=%d,len=%d",num,left_num_in_queue,p->front,p->rear,p->len);
+	}
+	MYQUEUE_API_UNLOCK(p);
+	return rt;
+}
+
+bool myQueueGet(myQueueHandle_t queue,void *buf,size_t num)
+{
+	MYQUEUE_T *p = (MYQUEUE_T *)queue;
+	if((NULL==p) || (NULL==p->buffer) || (NULL==buf) || (0==num)) {
+		debug_i("get queue=%p,buf=%p,num=%d",queue,buf,num);
+		return false;
+	}
+	bool rt = true;
+	MYQUEUE_API_LOCK(p);
+	size_t num_in_queue = NUM_IN_QUEUE(p);
+	if(num <= num_in_queue) {
+		char *dst = (char *)buf;
+		while(num) {
+			char *src = ((char *)(p->buffer)) + (p->front)*(p->size);
+			size_t templen = (p->len)-(p->front);
+			if(num <= templen) {
+				templen = num;
+			}
+			num -= templen;
+			size_t copy_len = templen * (p->size);
+			memcpy(dst,src,copy_len);
+			dst += copy_len;
+			p->front = (p->front + templen) % (p->len);
+		}
+	}
+	else {
+		rt = false;
+		debug_i("get failed, num=%d,inQueue=%d,front=%d,rear=%d,len=%d",num,num_in_queue,p->front,p->rear,p->len);
+	}
+	MYQUEUE_API_UNLOCK(p);
+	return rt;
+}
+
+bool myQueuePeek(const myQueueHandle_t queue,void *buf,size_t num,size_t offset)
+{
+	MYQUEUE_T *p = (MYQUEUE_T *)queue;
+	if((NULL==p) || (NULL==p->buffer) || (NULL==buf) || (0==num)) {
+		debug_i("peek queue=%p,buf=%p,num=%d",p,buf,num);
+		return false;
+	}
+	bool rt = true;
+	MYQUEUE_API_LOCK(p);
+	size_t num_in_queue = NUM_IN_QUEUE(p);
+	if((offset+num) <= num_in_queue) {
+		char *dst = (char *)buf;
+		size_t temp_front = (p->front)+offset;
+		while(num) {
+			char *src = ((char *)(p->buffer)) + temp_front*(p->size);
+			size_t templen = (p->len)-temp_front;
+			if(num <= templen) {
+				templen = num;
+			}
+			num -= templen;
+			size_t copy_len = templen * (p->size);
+			memcpy(dst,src,copy_len);
+			dst += copy_len;
+			temp_front = (temp_front + templen) % (p->len);
+		}
+	}
+	else {
+		rt = false;
+		debug_i("peek failed, num=%d,offst=%d,inQueue=%d,front=%d,rear=%d,len=%d",\
+				num,offset,num_in_queue,p->front,p->rear,p->len);
+	}
+	MYQUEUE_API_UNLOCK(p);
+	return rt;
+}
+
+bool myQueuePop(myQueueHandle_t queue,size_t num)
+{
+	MYQUEUE_T *p = (MYQUEUE_T *)queue;
+	if((NULL==p) || (0==num)) {
+		debug_i("pop queue=%p,num=%d",p,num);
+		return false;
+	}
+	bool rt = true;
+	MYQUEUE_API_LOCK(p);
+	size_t num_in_queue = NUM_IN_QUEUE(p);
+	if(num <= num_in_queue) {
+		p->front = (p->front + num) % (p->len);
+	}
+	else {
+		rt = false;
+		debug_i("pop failed, num=%d,inQueue=%d,front=%d,rear=%d,len=%d",\
+				num,num_in_queue,p->front,p->rear,p->len);
+	}
+	MYQUEUE_API_UNLOCK(p);
+	return rt;
+}
+
+bool myQueuePopAll(myQueueHandle_t queue)
+{
+	MYQUEUE_T *p = (MYQUEUE_T *)queue;
+	if(NULL == p) {
+		return false;
+	}
+	else {
+		MYQUEUE_API_LOCK(p);
+		p->front = p->rear;
+		MYQUEUE_API_UNLOCK(p);
 		return true;
 	}
 }
+
