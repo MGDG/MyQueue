@@ -2,8 +2,8 @@
   * @file		MyQueue.h
   * @author		mgdg
   * @brief		队列驱动文件
-  * @version	v1.0
-  * @date		2017-09-28
+  * @version	v1.1
+  * @date		2019-09-12
   * @remark		创建可以存放任意元素的环形队列，包含了入队出队等基本操作
   */
 
@@ -14,7 +14,7 @@
 #include <stdbool.h>
 
 /*队列句柄*/
-typedef void * myQueueHandle_t;
+typedef struct myQueue *myQueueHandle_t;
 
 /**
   * @brief	创建队列
